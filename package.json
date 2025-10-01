@@ -2,5 +2,9 @@
   "name": "steam4all-server",
   "version": "1.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "cloudinary": "^1.41.1",
+    "formidable": "^3.5.1"
+  }
 }
