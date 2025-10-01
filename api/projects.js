@@ -1,30 +1,24 @@
-// api/projects.js
 // Lists uploaded assets from Cloudinary (optionally filtered by ?studentName=...)
 // GET /api/projects
 // GET /api/projects?studentName=Alice
 
-import { v2 as cloudinary } from 'cloudinary';
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
 export default async function handler(req, res) {
-  // CORS (relax for testing; later restrict to your Squarespace domain)
+  // CORS (open for testing; we can tighten later)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-  if (req.method !== 'GET') {
-    res.status(405).json({ success: false, message: 'Method not allowed' });
-    return;
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' });
+
+  // ⤵ dynamic imports (avoid bundler issues)
+  const { v2: cloudinary } = await import('cloudinary');
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
 
   try {
     const folder = process.env.CLOUDINARY_FOLDER || 'steam4all';
@@ -44,9 +38,7 @@ export default async function handler(req, res) {
       resource_type: r.resource_type,
       bytes: r.bytes,
       created_at: r.created_at,
-      studentName: r.context && r.context.custom && r.context.custom.studentName
-        ? r.context.custom.studentName
-        : null
+      studentName: r.context?.custom?.studentName ?? null
     }));
 
     if (studentName) {
