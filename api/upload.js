@@ -1,37 +1,29 @@
-// api/upload.js
 // Parses multipart/form-data and uploads to Cloudinary.
 // Accepts fields: studentName, projectFile (file input name must be "projectFile")
 // Returns: { success, url, public_id, studentName }
 
-import { v2 as cloudinary } from 'cloudinary';
-import formidable from 'formidable';
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
 export const config = {
-  api: {
-    bodyParser: false // (Not required in Vercel’s Node functions, but safe if ever moved to Next)
-  }
+  api: { bodyParser: false } // harmless here; useful if ever moved into Next.js
 };
 
 export default async function handler(req, res) {
-  // CORS (relax for testing; later restrict to your Squarespace domain)
+  // CORS (open for testing; we can tighten later)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-  if (req.method !== 'POST') {
-    res.status(405).json({ success: false, message: 'Method not allowed' });
-    return;
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
+
+  // ⤵ dynamic imports (avoid bundler issues)
+  const { v2: cloudinary } = await import('cloudinary');
+  const formidable = (await import('formidable')).default;
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
 
   try {
     const form = new formidable.IncomingForm({ multiples: false, keepExtensions: true });
@@ -42,26 +34,20 @@ export default async function handler(req, res) {
 
     const studentName = (fields.studentName || 'Unknown').toString();
 
-    const fileObj =
-      files.projectFile ||
-      files.file ||
-      files.upload;
-
-    // formidable v3 puts file object differently; support both shapes:
+    const fileObj = files.projectFile || files.file || files.upload;
     const filepath =
       (fileObj && fileObj.filepath) ||
       (Array.isArray(fileObj) && fileObj[0] && fileObj[0].filepath);
 
     if (!filepath) {
-      res.status(400).json({ success: false, message: 'No file uploaded (expected field "projectFile")' });
-      return;
+      return res.status(400).json({ success: false, message: 'No file uploaded (expected field "projectFile")' });
     }
 
     const folder = process.env.CLOUDINARY_FOLDER || 'steam4all';
     const uploadResult = await cloudinary.uploader.upload(filepath, {
       folder,
-      resource_type: 'auto',    // handles images/videos
-      context: { studentName }  // attach metadata
+      resource_type: 'auto',
+      context: { studentName }
     });
 
     res.status(200).json({
