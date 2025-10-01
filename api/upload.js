@@ -1,9 +1,10 @@
+// api/upload.js
 // Parses multipart/form-data and uploads to Cloudinary.
-// Accepts fields: studentName, file (input name must be "projectFile")
+// Accepts fields: studentName, projectFile (file input name must be "projectFile")
 // Returns: { success, url, public_id, studentName }
 
-const cloudinary = require('cloudinary').v2;
-const formidable = require('formidable');
+import { v2 as cloudinary } from 'cloudinary';
+import formidable from 'formidable';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -11,7 +12,13 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-module.exports = async (req, res) => {
+export const config = {
+  api: {
+    bodyParser: false // (Not required in Vercel’s Node functions, but safe if ever moved to Next)
+  }
+};
+
+export default async function handler(req, res) {
   // CORS (relax for testing; later restrict to your Squarespace domain)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -27,9 +34,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const form = new formidable.IncomingForm({ multiples: false });
-    // Ensure formidable keeps the file on disk temporarily
-    form.keepExtensions = true;
+    const form = new formidable.IncomingForm({ multiples: false, keepExtensions: true });
 
     const { fields, files } = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => (err ? reject(err) : resolve({ fields, files })));
@@ -41,17 +46,22 @@ module.exports = async (req, res) => {
       files.projectFile ||
       files.file ||
       files.upload;
-    if (!fileObj || !fileObj.filepath) {
+
+    // formidable v3 puts file object differently; support both shapes:
+    const filepath =
+      (fileObj && fileObj.filepath) ||
+      (Array.isArray(fileObj) && fileObj[0] && fileObj[0].filepath);
+
+    if (!filepath) {
       res.status(400).json({ success: false, message: 'No file uploaded (expected field "projectFile")' });
       return;
     }
 
     const folder = process.env.CLOUDINARY_FOLDER || 'steam4all';
-    const uploadResult = await cloudinary.uploader.upload(fileObj.filepath, {
+    const uploadResult = await cloudinary.uploader.upload(filepath, {
       folder,
-      resource_type: 'auto',              // handles images/videos
-      context: { studentName },           // attach metadata
-      public_id: undefined                // let Cloudinary generate
+      resource_type: 'auto',    // handles images/videos
+      context: { studentName }  // attach metadata
     });
 
     res.status(200).json({
@@ -64,4 +74,4 @@ module.exports = async (req, res) => {
     console.error('Upload error:', err);
     res.status(500).json({ success: false, message: 'Upload failed', error: String(err) });
   }
-};
+}
