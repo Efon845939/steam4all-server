@@ -1,7 +1,3 @@
 export default function handler(req, res) {
-  res.status(200).json({
-    ok: true,
-    route: 'echo',
-    query: req.query || null
-  });
+  res.status(200).json({ ok: true, route: 'echo', query: req.query || null });
 }
